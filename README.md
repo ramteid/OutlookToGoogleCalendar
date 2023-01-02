@@ -24,3 +24,5 @@ The software basically does:
 - Go to the settings of your Google calendar. Add the service account user as a share (use the `client_email`) and assign write permissions.
 - With both `.json` files present and edited in the same directory as your executable, run `OutlookCalendarReader.exe`.
 - Check the console output and the logfile
+
+Hint: As you'll probably want your calendar events synced regularly, you can use the `Windows Task Scheduler` to invoke the executable regularly (e. g. every 30 min)
