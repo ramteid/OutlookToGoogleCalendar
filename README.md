@@ -22,3 +22,5 @@ The software basically does:
 - Rename the `json` file to `service-account-key-file.json`
 - Open the `json` file and copy the value of the field `client_email`. This is the user name of the service account in email format.
 - Go to the settings of your Google calendar. Add the service account user as a share (use the `client_email`) and assign write permissions.
+- With both `.json` files present and edited in the same directory as your executable, run `OutlookCalendarReader.exe`.
+- Check the console output and the logfile
