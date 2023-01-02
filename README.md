@@ -1,4 +1,4 @@
-# Outlook To Google Calendar Reader
+# Outlook To Google Calendar Reader/Exporter/Importer
 Exports Outlook calendar items from your lokal computer and imports it to Google Calendar. <br>
 Does not communicate with Office365 cloud services. The export of Outlook calendar items runs purely locally. <br>
 
