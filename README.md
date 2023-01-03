@@ -10,10 +10,16 @@ The software basically does:
 - Export Outlook main calendar items to an `.ical` file
 - The `.ical` file is parsed to `Ical.Net` items as an intermediate format
 - The ical items are converted into Google Calendar Event format
-- The events are synced one-way into the Google Calendar
+- The events are synced _one-way_ into the Google Calendar:
+  - Google Calendar events that don't exist in Outlook are deleted in Google Calendar
+  - Events that exist in both calendars and were modified in Outlook are updated in Google Calendar
+  - Outlook events that don't yet exist in Google Calendar are inserted in Google Calendar
+
+Changes in Google Calendar are not monitored nor synced back to Outlook.
 
 ## HowTo
-- In the Google calendar settings, find the Calendar Id, which has this format: `xxxxxxxxxxxxxxxxxxxxxxxxxx@group.calendar.google.com`
+- Create a _separate and empty_ Google calendar (!) as ALL EXISTING EVENTS OF THE TARGETED GOOGLE CALENDAR WILL BE DELETED
+- In your Google calendar settings, find the Calendar Id, which has this format: `xxxxxxxxxxxxxxxxxxxxxxxxxx@group.calendar.google.com`
 - Open `google-calendar-info.json` and paste the Google calendar Id into the appropriate field
 - Build the project
 - Create a Google Calendar service account
