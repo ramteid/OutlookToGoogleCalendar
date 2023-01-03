@@ -15,8 +15,8 @@ namespace OutlookCalendarReader
             return calendar.Events
                 .Where(e => !string.IsNullOrWhiteSpace(e.Summary))
                 .Where(e => e.Start is not null && e.End is not null)
-                //.Where(e => e.Start.AsSystemLocal < DateTime.Today + TimeSpan.FromDays(365))
-                //.Where(e => e.End.AsSystemLocal > DateTime.Today - TimeSpan.FromDays(365))
+                //.Where(e => e.Start.AsSystemLocal < DateTime.Today + TimeSpan.FromDays(365))  // exclude events which start more than 365 days from today
+                //.Where(e => e.End.AsSystemLocal > DateTime.Today - TimeSpan.FromDays(365))    // exclude events which ended more than 365 days ago
                 .ToList();
         }
     }
