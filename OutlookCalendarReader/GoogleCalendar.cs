@@ -19,6 +19,7 @@ namespace OutlookCalendarReader
     {
         private readonly string _calendarId;
         private readonly CalendarService _service;
+        private string _calendarTimeZone;
 
         public GoogleCalendar()
         {
@@ -53,8 +54,6 @@ namespace OutlookCalendarReader
 
         internal async Task<Event> ConvertIcalToGoogleEvent(CalendarEvent iCalEvent)
         {
-            var calendarTimeZone = await GetCalendarTimeZone(_calendarId);
-
             // Specifying attendees in Google calendar would send out invitations on creation. Also some business account would be required.
             // Also sometimes there is no E-Mail in the Outlook export specified. Thus only append the attendees to the description.
             var attendees = iCalEvent.Attendees.Select(a =>
@@ -83,21 +82,31 @@ namespace OutlookCalendarReader
                 Start = new EventDateTime
                 {
                     DateTime = iCalEvent.Start.AsUtc,
-                    TimeZone = calendarTimeZone
+                    TimeZone = await GetCalendarTimeZone()
                 },
                 End = new EventDateTime
                 {
                     DateTime = iCalEvent.End.AsUtc,
-                    TimeZone = calendarTimeZone
+                    TimeZone = await GetCalendarTimeZone()
                 }
             };
+        }
+
+        private async Task<string> GetCalendarTimeZone()
+        {
+            if (string.IsNullOrWhiteSpace(_calendarTimeZone))
+            {
+                var timeZone = await GetCalendarTimeZone(_calendarId);
+                _calendarTimeZone = timeZone;
+            }
+            return _calendarTimeZone;
         }
 
         internal async Task<IList<Event>> GetExistingEvents()
         {
             var listRequest = _service.Events.List(_calendarId);
             //listRequest.TimeMax = DateTime.Today + TimeSpan.FromDays(365);  // exclude events which start more than 365 days from today
-            //listRequest.TimeMin = DateTime.Today - TimeSpan.FromDays(365);    // exclude events which ended more than 5 days ago
+            //listRequest.TimeMin = DateTime.Today - TimeSpan.FromDays(365);    // exclude events which ended more than 365 days ago
             var listResponse = await listRequest.ExecuteAsync();
             return listResponse.Items;
         }
