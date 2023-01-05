@@ -18,7 +18,7 @@ The software basically does:
 Changes in Google Calendar are not monitored nor synced back to Outlook.
 
 ## HowTo
-- Create a _separate and empty_ Google calendar (!) as ALL EXISTING EVENTS OF THE TARGETED GOOGLE CALENDAR WILL BE DELETED
+- Create a *SEPARATE and EMPTY* Google Calendar *(!)* as **ALL EXISTING EVENTS OF THE TARGETED GOOGLE CALENDAR WILL BE DELETED !!!**
 - In your Google calendar settings, find the Calendar Id, which has this format: `xxxxxxxxxxxxxxxxxxxxxxxxxx@group.calendar.google.com`
 - Open `google-calendar-info.json` and paste the Google calendar Id into the appropriate field
 - Build the project
