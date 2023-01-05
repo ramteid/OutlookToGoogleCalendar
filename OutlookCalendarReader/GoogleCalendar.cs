@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -104,11 +104,25 @@ namespace OutlookCalendarReader
 
         internal async Task<IList<Event>> GetExistingEvents()
         {
-            var listRequest = _service.Events.List(_calendarId);
-            //listRequest.TimeMax = DateTime.Today + TimeSpan.FromDays(365);  // exclude events which start more than 365 days from today
-            //listRequest.TimeMin = DateTime.Today - TimeSpan.FromDays(365);    // exclude events which ended more than 365 days ago
-            var listResponse = await listRequest.ExecuteAsync();
-            return listResponse.Items;
+            var list = new List<Event>();
+            string? nextPageToken = null;
+
+            do
+            {
+                var listRequest = _service.Events.List(_calendarId);
+                if (nextPageToken is not null)
+                {
+                    listRequest.PageToken = nextPageToken;
+                }
+                //listRequest.TimeMax = DateTime.Today + TimeSpan.FromDays(365);  // exclude events which start more than 365 days from today
+                //listRequest.TimeMin = DateTime.Today - TimeSpan.FromDays(365);    // exclude events which ended more than 365 days ago
+                var listResponse = await listRequest.ExecuteAsync();
+                list.AddRange(listResponse.Items);
+                nextPageToken = listResponse.NextPageToken;
+            }
+            while (nextPageToken != null);
+
+            return list;
         }
 
         internal async Task InsertEvent(Event calendarEvent)
