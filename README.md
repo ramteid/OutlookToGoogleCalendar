@@ -32,3 +32,7 @@ Changes in Google Calendar are not monitored nor synced back to Outlook.
 - Check the console output and the logfile
 
 Hint: As you'll probably want your calendar events synced regularly, you can use the `Windows Task Scheduler` to invoke the executable regularly (e. g. every 30 min)
+
+## Known issues
+- If the sharing options are disabled in your Google calendar and if you're using Google Workspace, check the Workspace settings for Calendar and the sharing settings for secondary calendars.
+- If you're getting `404` / `Not Found` errors, check if the Google Calendar Id is really for the correct calendar and that your service account user has full permissions.
