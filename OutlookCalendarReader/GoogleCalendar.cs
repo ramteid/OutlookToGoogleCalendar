@@ -72,7 +72,7 @@ namespace OutlookCalendarReader
             return new Event
             {
                 Id = NormalizeUid(iCalEvent),
-                Created = iCalEvent.Created.AsSystemLocal,
+                Created = iCalEvent.Created?.AsSystemLocal,
                 Summary = iCalEvent.Summary,
                 Description = description,
                 Location = iCalEvent.Location ?? "",
