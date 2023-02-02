@@ -51,7 +51,7 @@ internal class Program
             .ToList();
 
         var eventsDeletedInOutlook = existingGoogleEvents
-            .Where(e => e.Status != "cancelled")  // ignore cancelled instanced of recurring events
+            .Where(e => e.Status != "cancelled")  // ignore cancelled instances of recurring events
             .ExceptBy(eventsFromOutlook.Select(e => e.ConvertedEvent.Id), e => e.Id)
             .ToList();
 
