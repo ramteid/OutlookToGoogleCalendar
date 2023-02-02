@@ -28,6 +28,8 @@ internal class Program
 
     private static async Task ExportOutlookCalendarToGoogle()
     {
+        Logger.Log("Started");
+
         var iCalFileName = Path.GetTempFileName();
         var outlookExporter = new OutlookExporter();
         outlookExporter.SaveCalendarToDisk(iCalFileName);
@@ -41,28 +43,37 @@ internal class Program
         var existingGoogleEvents = await googleCalendar.GetExistingEvents();
 
         var eventsFromOutlookTasks = iCalEvents
-            .Select(async e => await googleCalendar.ConvertIcalToGoogleEvent(e));
+            .Select(async e => await googleCalendar.ConvertIcalToConvertedEvent(e));
         var eventsFromOutlook = await Task.WhenAll(eventsFromOutlookTasks);
-
+        
         var alreadyImportedEvents = eventsFromOutlook
-            .Where(outlookEvent => existingGoogleEvents
-                .Any(googleEvent => googleEvent.Id == outlookEvent.Id))
+            .Where(outlookEvent => existingGoogleEvents.Any(e => e.Id == outlookEvent.ConvertedEvent.Id))
             .ToList();
 
         var eventsDeletedInOutlook = existingGoogleEvents
-            .ExceptBy(eventsFromOutlook.Select(e => e.Id), e => e.Id)
+            .Where(e => e.Status != "cancelled")  // ignore cancelled instanced of recurring events
+            .ExceptBy(eventsFromOutlook.Select(e => e.ConvertedEvent.Id), e => e.Id)
             .ToList();
 
         var newEvents = eventsFromOutlook
-            .Except(alreadyImportedEvents)
+            .Select(e => e.ConvertedEvent)
+            .ExceptBy(alreadyImportedEvents.Select(e => e.ConvertedEvent).Select(x => x.Id), x => x.Id)
             .ToList();
 
         var eventsToUpdate = existingGoogleEvents
             .Except(eventsDeletedInOutlook)
-            .Where(e => WasUpdated(e, eventsFromOutlook.Single(o => o.Id == e.Id)))
+            .Where(existing =>
+            {
+                var matchingOutlookEvent = eventsFromOutlook
+                    .Select(g => g.ConvertedEvent)
+                    .SingleOrDefault(o => o.Id == existing.Id);
+                return matchingOutlookEvent is not null && WasUpdated(existing, matchingOutlookEvent);
+            })
             .ToList();
-        
-        Logger.Log("Started");
+
+        var eventsWithExceptions = eventsFromOutlook
+            .Where(e => e.ExceptionDates.Any())
+            .ToList();
 
         if (eventsDeletedInOutlook.Count > 0)
         {
@@ -79,10 +90,10 @@ internal class Program
         }
         foreach (var eventToUpdate in eventsToUpdate)
         {
-            var updatedOutlookEvent = eventsFromOutlook.Single(o => o.Id == eventToUpdate.Id);
-            await googleCalendar.UpdateEvent(updatedOutlookEvent, eventToUpdate.Id);
+            var updatedOutlookEvent = eventsFromOutlook.Single(o => o.ConvertedEvent.Id == eventToUpdate.Id);
+            await googleCalendar.UpdateEvent(updatedOutlookEvent.ConvertedEvent, eventToUpdate.Id);
         }
-        
+
         if (newEvents.Count > 0)
         {
             Logger.Log($"Events to insert: {newEvents.Count}");
@@ -90,6 +101,11 @@ internal class Program
         foreach (var newEvent in newEvents)
         {
             await googleCalendar.InsertEvent(newEvent);
+        }
+        
+        foreach (var eventWithExceptions in eventsWithExceptions)
+        {
+            await googleCalendar.DeleteExceptions(eventWithExceptions.ConvertedEvent, eventWithExceptions.ExceptionDates);
         }
     }
     

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,6 +12,7 @@ using Google.Apis.Services;
 using Ical.Net.CalendarComponents;
 using System.Reflection;
 using System.Text.Json;
+using Ical.Net.DataTypes;
 
 namespace OutlookCalendarReader
 {
@@ -52,7 +53,7 @@ namespace OutlookCalendarReader
             });
         }
 
-        internal async Task<Event> ConvertIcalToGoogleEvent(CalendarEvent iCalEvent)
+        internal async Task<(Event ConvertedEvent, IEnumerable<Period> ExceptionDates)> ConvertIcalToConvertedEvent(CalendarEvent iCalEvent)
         {
             // Specifying attendees in Google calendar would send out invitations on creation. Also some business account would be required.
             // Also sometimes there is no E-Mail in the Outlook export specified. Thus only append the attendees to the description.
@@ -69,7 +70,7 @@ namespace OutlookCalendarReader
                 ? (iCalEvent.Description ?? "") + "\n\nAttendees:\n" + string.Join("\n", attendees)
                 : iCalEvent.Description ?? "";
 
-            return new Event
+            var ConvertedEvent = new Event
             {
                 Id = NormalizeUid(iCalEvent),
                 Created = iCalEvent.Created?.AsSystemLocal,
@@ -90,6 +91,8 @@ namespace OutlookCalendarReader
                     TimeZone = await GetCalendarTimeZone()
                 }
             };
+
+            return (ConvertedEvent: ConvertedEvent, ExceptionDates: iCalEvent.ExceptionDates.SelectMany(e => e));
         }
 
         private async Task<string> GetCalendarTimeZone()
@@ -125,13 +128,42 @@ namespace OutlookCalendarReader
             return list;
         }
 
+        private async Task<List<Event>> GetInstances(Event ConvertedEvent)
+        {
+            try
+            {
+                var list = new List<Event>();
+                string? nextPageToken = null;
+
+                do
+                {
+                    var request = _service.Events.Instances(_calendarId, ConvertedEvent.Id);
+                    if (nextPageToken is not null)
+                    {
+                        request.PageToken = nextPageToken;
+                    }
+                    var response = await request.ExecuteAsync();
+                    list.AddRange(response.Items);
+                    nextPageToken = response.NextPageToken;
+                }
+                while (nextPageToken != null);
+
+                return list;
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"Error retrieving instances: {e}");
+                return new List<Event>();
+            }
+        }
+
         internal async Task InsertEvent(Event calendarEvent)
         {
             var request = _service.Events.Insert(calendarEvent, _calendarId);
             try
             {
                 var response = await request.ExecuteAsync();
-                Logger.Log("Inserted event " + response.Id);
+                //Logger.Log("Inserted event " + response.Id);
             }
             catch (Exception e)
             {
@@ -168,7 +200,47 @@ namespace OutlookCalendarReader
                 Logger.Log($"Error updating event {calendarEvent.Id}: {e}");
                 return;
             }
-            Logger.Log("Updated event " + response.Id);
+            Logger.Log($"Updated event {response.Id}");
+        }
+
+        internal async Task DeleteExceptions(Event googleEvent, IEnumerable<Period> exceptionDates)
+        {
+            var instances = await GetInstances(googleEvent);
+            var exceptionsToDelete = instances
+                .Where(instance => instance.Status != "cancelled")
+                .Where(instance => instance.Start.DateTime.HasValue)
+                .Where(instance => exceptionDates.Any(e => e.StartTime.AsUtc == instance.Start.DateTime!.Value.ToUniversalTime()))
+                .ToList();
+
+            if (exceptionsToDelete.Count == 0)
+            {
+                // All exceptions for this event have already been cancelled
+                return;
+            }
+
+            Logger.Log($"Cancelling {exceptionsToDelete.Count} exceptions for event {googleEvent.Id}");
+
+            foreach (var exception in exceptionsToDelete)
+            {
+                // Retrieve instance again as the ETAG could have changed if the base event was modified in another iteration
+                var refreshedInstances = await GetInstances(googleEvent);
+                var instance = refreshedInstances.SingleOrDefault(i => i.Id == exception.Id);
+                if (instance is null)
+                {
+                    Logger.Log($"Error retrieving instance again: {exception.Id}");
+                }
+
+                instance!.Status = "cancelled";
+                var cancelRequest = _service.Events.Update(instance, _calendarId, instance.Id);
+                try
+                {
+                    var result = await cancelRequest.ExecuteAsync();
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"Error cancelling instance: {e}");
+                }
+            }
         }
 
         private async Task<string> GetCalendarTimeZone(string calendarId)
@@ -183,7 +255,7 @@ namespace OutlookCalendarReader
         /// </summary>
         private static string NormalizeUid(CalendarEvent iCalEvent)
         {
-            var id = iCalEvent.Uid + iCalEvent.Created + iCalEvent.Summary + iCalEvent.Start.AsUtc + iCalEvent.End.AsUtc + "a";
+            var id = iCalEvent.Uid + iCalEvent.Summary + iCalEvent.Start.AsUtc + iCalEvent.End.AsUtc + "j";
 
             using var sha256Hash = SHA256.Create();
 
