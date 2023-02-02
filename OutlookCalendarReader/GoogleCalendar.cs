@@ -128,7 +128,7 @@ namespace OutlookCalendarReader
             return list;
         }
 
-        private async Task<List<Event>> GetInstances(Event ConvertedEvent)
+        private async Task<List<Event>> GetInstances(Event convertedEvent)
         {
             try
             {
@@ -137,7 +137,7 @@ namespace OutlookCalendarReader
 
                 do
                 {
-                    var request = _service.Events.Instances(_calendarId, ConvertedEvent.Id);
+                    var request = _service.Events.Instances(_calendarId, convertedEvent.Id);
                     if (nextPageToken is not null)
                     {
                         request.PageToken = nextPageToken;
@@ -163,7 +163,7 @@ namespace OutlookCalendarReader
             try
             {
                 var response = await request.ExecuteAsync();
-                //Logger.Log("Inserted event " + response.Id);
+                Logger.Log("Inserted event " + response.Id);
             }
             catch (Exception e)
             {
@@ -255,7 +255,7 @@ namespace OutlookCalendarReader
         /// </summary>
         private static string NormalizeUid(CalendarEvent iCalEvent)
         {
-            var id = iCalEvent.Uid + iCalEvent.Summary + iCalEvent.Start.AsUtc + iCalEvent.End.AsUtc + "j";
+            var id = iCalEvent.Uid + iCalEvent.Summary + iCalEvent.Start.AsUtc + iCalEvent.End.AsUtc + "1";
 
             using var sha256Hash = SHA256.Create();
 
