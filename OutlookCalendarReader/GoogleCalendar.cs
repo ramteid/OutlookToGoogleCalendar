@@ -92,7 +92,7 @@ namespace OutlookCalendarReader
                 }
             };
 
-            return (ConvertedEvent: ConvertedEvent, ExceptionDates: iCalEvent.ExceptionDates.SelectMany(e => e));
+            return (ConvertedEvent: convertedEvent, ExceptionDates: iCalEvent.ExceptionDates.SelectMany(e => e));
         }
 
         private async Task<string> GetCalendarTimeZone()

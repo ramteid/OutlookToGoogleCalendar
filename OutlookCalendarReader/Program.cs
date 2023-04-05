@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -13,7 +14,6 @@ internal class Program
     {
         try
         {
-
             await ExportOutlookCalendarToGoogle();
         }
         catch (HttpRequestException)
@@ -41,7 +41,7 @@ internal class Program
         var googleCalendar = new GoogleCalendar();
 
         var existingGoogleEvents = await googleCalendar.GetExistingEvents();
-
+        
         var eventsFromOutlookTasks = iCalEvents
             .Select(async e => await googleCalendar.ConvertIcalToConvertedEvent(e));
         var eventsFromOutlook = await Task.WhenAll(eventsFromOutlookTasks);
@@ -66,7 +66,7 @@ internal class Program
             {
                 var matchingOutlookEvent = eventsFromOutlook
                     .Select(g => g.ConvertedEvent)
-                    .SingleOrDefault(o => o.Id == existing.Id);
+                    .FirstOrDefault(o => o.Id == existing.Id);
                 return matchingOutlookEvent is not null && WasUpdated(existing, matchingOutlookEvent);
             })
             .ToList();
@@ -74,7 +74,7 @@ internal class Program
         var eventsWithExceptions = eventsFromOutlook
             .Where(e => e.ExceptionDates.Any())
             .ToList();
-
+        
         if (eventsDeletedInOutlook.Count > 0)
         {
             Logger.Log($"Events to delete: {eventsDeletedInOutlook.Count}");
