@@ -37,15 +37,14 @@ internal class Program
         var converter = new IcalConverter();
         var iCalEvents = converter.ConvertIcalToEvents(iCalFileName);
         File.Delete(iCalFileName);
-
+        
         var googleCalendar = new GoogleCalendar();
-
         var existingGoogleEvents = await googleCalendar.GetExistingEvents();
         
         var eventsFromOutlookTasks = iCalEvents
             .Select(async e => await googleCalendar.ConvertIcalToConvertedEvent(e));
         var eventsFromOutlook = await Task.WhenAll(eventsFromOutlookTasks);
-        
+
         var alreadyImportedEvents = eventsFromOutlook
             .Where(outlookEvent => existingGoogleEvents.Any(e => e.Id == outlookEvent.ConvertedEvent.Id))
             .ToList();
@@ -90,7 +89,9 @@ internal class Program
         }
         foreach (var eventToUpdate in eventsToUpdate)
         {
-            var updatedOutlookEvent = eventsFromOutlook.Single(o => o.ConvertedEvent.Id == eventToUpdate.Id);
+            // Duplicates are possible here for unknown reasons
+            var updatedOutlookEvent = eventsFromOutlook.First(o => o.ConvertedEvent.Id == eventToUpdate.Id);
+
             await googleCalendar.UpdateEvent(updatedOutlookEvent.ConvertedEvent, eventToUpdate.Id);
         }
 
