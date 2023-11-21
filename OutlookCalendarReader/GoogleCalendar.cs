@@ -70,7 +70,7 @@ namespace OutlookCalendarReader
                 ? (iCalEvent.Description ?? "") + "\n\nAttendees:\n" + string.Join("\n", attendees)
                 : iCalEvent.Description ?? "";
 
-            var ConvertedEvent = new Event
+            var convertedEvent = new Event
             {
                 Id = NormalizeUid(iCalEvent),
                 Created = iCalEvent.Created?.AsSystemLocal,
@@ -89,7 +89,8 @@ namespace OutlookCalendarReader
                 {
                     DateTime = iCalEvent.End.AsUtc,
                     TimeZone = await GetCalendarTimeZone()
-                }
+                },
+                RecurringEventId = iCalEvent.RecurrenceId?.ToString()
             };
 
             return (ConvertedEvent: convertedEvent, ExceptionDates: iCalEvent.ExceptionDates.SelectMany(e => e));
@@ -255,7 +256,7 @@ namespace OutlookCalendarReader
         /// </summary>
         private static string NormalizeUid(CalendarEvent iCalEvent)
         {
-            var id = iCalEvent.Uid + iCalEvent.Summary + iCalEvent.Start.AsUtc + iCalEvent.End.AsUtc + "1";
+            var id = iCalEvent.Uid + iCalEvent.Summary + iCalEvent.Start.AsUtc + iCalEvent.End.AsUtc + "3";
 
             using var sha256Hash = SHA256.Create();
 

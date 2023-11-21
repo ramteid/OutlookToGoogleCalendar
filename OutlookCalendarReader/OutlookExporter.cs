@@ -22,6 +22,7 @@ internal class OutlookExporter
         exporter.RestrictToWorkingHours = false;
         exporter.IncludeWholeCalendar = true;
         exporter.StartDate = DateTime.Today;
+        exporter.EndDate = DateTime.Today + TimeSpan.FromDays(365);
 
         // Save the calendar to disk
         exporter.SaveAsICal(calendarFileName);
