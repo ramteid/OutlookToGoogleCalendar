@@ -12,7 +12,6 @@ using Google.Apis.Services;
 using Ical.Net.CalendarComponents;
 using System.Reflection;
 using System.Text.Json;
-using Ical.Net.DataTypes;
 
 namespace OutlookCalendarReader
 {
@@ -20,7 +19,7 @@ namespace OutlookCalendarReader
     {
         private readonly string _calendarId;
         private readonly CalendarService _service;
-        private string _calendarTimeZone;
+        private string? _calendarTimeZone;
 
         public GoogleCalendar()
         {
@@ -53,30 +52,47 @@ namespace OutlookCalendarReader
             });
         }
 
-        internal async Task<(Event ConvertedEvent, IEnumerable<Period> ExceptionDates)> ConvertIcalToConvertedEvent(CalendarEvent iCalEvent)
-        {
-            // Specifying attendees in Google calendar would send out invitations on creation. Also some business account would be required.
-            // Also sometimes there is no E-Mail in the Outlook export specified. Thus only append the attendees to the description.
-            var attendees = iCalEvent.Attendees.Select(a =>
-            {
-                var name = string.IsNullOrWhiteSpace(a.CommonName) ? "Unknown" : a.CommonName;
-                var email = string.IsNullOrWhiteSpace(a.Value.ToString())
-                    ? ""
-                    : a.Value.ToString().Replace($"{a.Value.Scheme}:", "");
-                return $"{name} <{email}>";
-            });
+        private static bool IsPrivacyMode =>
+            string.Equals(Environment.GetEnvironmentVariable("PRIVACY_MODE"), "true", StringComparison.OrdinalIgnoreCase);
 
-            var description = iCalEvent.Attendees.Any() 
-                ? (iCalEvent.Description ?? "") + "\n\nAttendees:\n" + string.Join("\n", attendees)
-                : iCalEvent.Description ?? "";
+        internal async Task<Event> ConvertIcalToConvertedEvent(CalendarEvent iCalEvent)
+        {
+            string description;
+            string location;
+
+            if (IsPrivacyMode)
+            {
+                description = "";
+                location = RemoveHyperlinks(iCalEvent.Location ?? "");
+            }
+            else
+            {
+                // Specifying attendees in Google calendar would send out invitations on creation.
+                // Also sometimes there is no E-Mail in the Outlook export specified. Thus only append the attendees to the description.
+                var attendees = iCalEvent.Attendees.Select(a =>
+                {
+                    var name = string.IsNullOrWhiteSpace(a.CommonName) ? "Unknown" : a.CommonName;
+                    var email = string.IsNullOrWhiteSpace(a.Value.ToString())
+                        ? ""
+                        : a.Value.ToString().Replace($"{a.Value.Scheme}:", "");
+                    return $"{name} <{email}>";
+                });
+
+                description = iCalEvent.Attendees.Any()
+                    ? (iCalEvent.Description ?? "") + "\n\nAttendees:\n" + string.Join("\n", attendees)
+                    : iCalEvent.Description ?? "";
+
+                location = iCalEvent.Location ?? "";
+            }
 
             var convertedEvent = new Event
             {
                 Id = NormalizeUid(iCalEvent),
+                Status = "confirmed",
                 Created = iCalEvent.Created?.AsSystemLocal,
                 Summary = iCalEvent.Summary,
                 Description = description,
-                Location = iCalEvent.Location ?? "",
+                Location = location,
                 Organizer = new Event.OrganizerData { DisplayName = iCalEvent.Organizer?.CommonName ?? "" },
                 Recurrence = iCalEvent.RecurrenceRules.Select(r => "RRULE:" + r).ToList(),
                 Sequence = iCalEvent.Sequence,
@@ -89,11 +105,10 @@ namespace OutlookCalendarReader
                 {
                     DateTime = iCalEvent.End.AsUtc,
                     TimeZone = await GetCalendarTimeZone()
-                },
-                RecurringEventId = iCalEvent.RecurrenceId?.ToString()
+                }
             };
 
-            return (ConvertedEvent: convertedEvent, ExceptionDates: iCalEvent.ExceptionDates.SelectMany(e => e));
+            return convertedEvent;
         }
 
         private async Task<string> GetCalendarTimeZone()
@@ -114,6 +129,7 @@ namespace OutlookCalendarReader
             do
             {
                 var listRequest = _service.Events.List(_calendarId);
+                listRequest.ShowDeleted = true;
                 if (nextPageToken is not null)
                 {
                     listRequest.PageToken = nextPageToken;
@@ -166,6 +182,20 @@ namespace OutlookCalendarReader
                 var response = await request.ExecuteAsync();
                 Logger.Log("Inserted event " + response.Id);
             }
+            catch (Google.GoogleApiException e) when (e.HttpStatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                Logger.Log($"Event {calendarEvent.Id} already exists, updating instead");
+                try
+                {
+                    var existing = await _service.Events.Get(_calendarId, calendarEvent.Id).ExecuteAsync();
+                    calendarEvent.Sequence = existing.Sequence;
+                    await UpdateEvent(calendarEvent, calendarEvent.Id);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Error fetching/updating existing event {calendarEvent.Id}: {ex}");
+                }
+            }
             catch (Exception e)
             {
                 Logger.Log($"Error inserting event {calendarEvent.Id}: {e}");
@@ -204,13 +234,13 @@ namespace OutlookCalendarReader
             Logger.Log($"Updated event {response.Id}");
         }
 
-        internal async Task DeleteExceptions(Event googleEvent, IEnumerable<Period> exceptionDates)
+        internal async Task DeleteExceptions(Event googleEvent, IEnumerable<DateTime> exceptionDates)
         {
             var instances = await GetInstances(googleEvent);
             var exceptionsToDelete = instances
                 .Where(instance => instance.Status != "cancelled")
                 .Where(instance => instance.Start.DateTime.HasValue)
-                .Where(instance => exceptionDates.Any(e => e.StartTime.AsUtc == instance.Start.DateTime!.Value.ToUniversalTime()))
+                .Where(instance => exceptionDates.Contains(instance.Start.DateTime!.Value.ToUniversalTime()))
                 .ToList();
 
             if (exceptionsToDelete.Count == 0)
@@ -229,9 +259,10 @@ namespace OutlookCalendarReader
                 if (instance is null)
                 {
                     Logger.Log($"Error retrieving instance again: {exception.Id}");
+                    continue;
                 }
 
-                instance!.Status = "cancelled";
+                instance.Status = "cancelled";
                 var cancelRequest = _service.Events.Update(instance, _calendarId, instance.Id);
                 try
                 {
@@ -275,6 +306,32 @@ namespace OutlookCalendarReader
             // Return the hexadecimal string.
             var hash = sBuilder.ToString();
             return hash[..Math.Min(hash.Length, 1024)];
+        }
+
+        /// <summary>
+        /// Removes hyperlinks from text, keeping only the display text or URL
+        /// </summary>
+        private static string RemoveHyperlinks(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return "";
+            }
+
+            // Remove HTML anchor tags: <a href="url">text</a> -> text
+            var result = System.Text.RegularExpressions.Regex.Replace(
+                text, 
+                @"<a[^>]*href=[""']([^""']*)[""'][^>]*>(.*?)</a>", 
+                "$2", 
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Remove remaining HTML tags
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"<[^>]+>", "");
+
+            // Remove markdown-style links: [text](url) -> text
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"\[([^\]]+)\]\([^\)]+\)", "$1");
+
+            return result.Trim();
         }
     }
 }

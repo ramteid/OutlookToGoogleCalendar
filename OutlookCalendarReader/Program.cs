@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using dotenv.net;
 using Google.Apis.Calendar.v3.Data;
 
 namespace OutlookCalendarReader;
@@ -11,6 +12,8 @@ internal class Program
 {
     static async Task Main(string[] _)
     {
+        DotEnv.Load();
+
         try
         {
             await ExportOutlookCalendarToGoogle();
@@ -34,14 +37,18 @@ internal class Program
         outlookExporter.SaveCalendarToDisk(iCalFileName);
 
         var converter = new IcalConverter();
-        var iCalEvents = converter.ConvertIcalToEvents(iCalFileName);
+        var iCalImports = converter.ConvertIcalToEvents(iCalFileName);
         File.Delete(iCalFileName);
         
         var googleCalendar = new GoogleCalendar();
         var existingGoogleEvents = await googleCalendar.GetExistingEvents();
         
-        var eventsFromOutlookTasks = iCalEvents
-            .Select(async e => await googleCalendar.ConvertIcalToConvertedEvent(e));
+        var eventsFromOutlookTasks = iCalImports
+            .Select(async e => new
+            {
+                Import = e,
+                ConvertedEvent = await googleCalendar.ConvertIcalToConvertedEvent(e.CalendarEvent)
+            });
         var eventsFromOutlook = await Task.WhenAll(eventsFromOutlookTasks);
 
         var alreadyImportedEvents = eventsFromOutlook
@@ -59,18 +66,18 @@ internal class Program
             .ToList();
 
         var eventsToUpdate = existingGoogleEvents
+            .Where(e => e.Status != "cancelled")
             .Except(eventsDeletedInOutlook)
             .Where(existing =>
             {
                 var matchingOutlookEvent = eventsFromOutlook
-                    .Select(g => g.ConvertedEvent)
-                    .FirstOrDefault(o => o.Id == existing.Id);
-                return matchingOutlookEvent is not null && WasUpdated(existing, matchingOutlookEvent);
+                    .FirstOrDefault(o => o.ConvertedEvent.Id == existing.Id);
+                return matchingOutlookEvent is not null && WasUpdated(existing, matchingOutlookEvent.ConvertedEvent);
             })
             .ToList();
 
         var eventsWithExceptions = eventsFromOutlook
-            .Where(e => e.ExceptionDates.Any())
+            .Where(e => e.Import.ExceptionDates.Any())
             .ToList();
         
         if (eventsDeletedInOutlook.Count > 0)
@@ -90,6 +97,7 @@ internal class Program
         {
             // Duplicates are possible here for unknown reasons
             var updatedOutlookEvent = eventsFromOutlook.First(o => o.ConvertedEvent.Id == eventToUpdate.Id);
+            updatedOutlookEvent.ConvertedEvent.Sequence = eventToUpdate.Sequence;
 
             await googleCalendar.UpdateEvent(updatedOutlookEvent.ConvertedEvent, eventToUpdate.Id);
         }
@@ -105,7 +113,7 @@ internal class Program
         
         foreach (var eventWithExceptions in eventsWithExceptions)
         {
-            await googleCalendar.DeleteExceptions(eventWithExceptions.ConvertedEvent, eventWithExceptions.ExceptionDates);
+            await googleCalendar.DeleteExceptions(eventWithExceptions.ConvertedEvent, eventWithExceptions.Import.ExceptionDates);
         }
     }
     
