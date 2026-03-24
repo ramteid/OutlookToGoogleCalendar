@@ -3,6 +3,6 @@ namespace OutlookCalendarReader
 {
     internal class GoogleCalendarInfo
     {
-        public string GoogleCalendarId { get; set; }
+        public string? GoogleCalendarId { get; set; }
     }
 }
