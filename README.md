@@ -2,7 +2,7 @@
 Exports Outlook calendar items from your lokal computer and imports it to Google Calendar. <br>
 Does not communicate with Office365 cloud services. The export of Outlook calendar items runs purely locally. <br>
 
-Tested with Outlook 16.0. Based on .NET6 C#.
+Tested with Outlook 16.0. Based on .NET 10 C#.
 
 
 ## Details
@@ -29,9 +29,13 @@ Changes in Google Calendar are not monitored nor synced back to Outlook.
 - Open the `json` file and copy the value of the field `client_email`. This is the user name of the service account in email format.
 - Go to the settings of your Google calendar. Add the service account user as a share (use the `client_email`) and assign write permissions.
 - With both `.json` files present and edited in the same directory as your executable, run `OutlookCalendarReader.exe`.
+- Alternatively, run `.\build-and-run.ps1` from the repository root to build and run in one step.
 - Check the console output and the logfile
 
 Hint: As you'll probably want your calendar events synced regularly, you can use the `Windows Task Scheduler` to invoke the executable regularly (e. g. every 30 min)
+
+## Privacy Mode
+Set `PRIVACY_MODE=true` in the `.env` file (next to the `.csproj`) to sync only event times and titles. When unset or set to any other value, full event data (description, location, attendees) is synced.
 
 ## Known issues
 - If the sharing options are disabled in your Google calendar and if you're using Google Workspace, check the Workspace settings for Calendar and the sharing settings for secondary calendars.
