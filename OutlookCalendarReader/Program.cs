@@ -12,7 +12,8 @@ internal class Program
 {
     static async Task Main(string[] _)
     {
-        DotEnv.Load();
+        var exeDir = AppContext.BaseDirectory;
+        DotEnv.Load(options: new DotEnvOptions(envFilePaths: new[] { Path.Combine(exeDir, ".env") }));
 
         try
         {
