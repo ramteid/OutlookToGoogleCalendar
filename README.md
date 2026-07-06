@@ -34,8 +34,8 @@ Changes in Google Calendar are not monitored nor synced back to Outlook.
 
 Hint: As you'll probably want your calendar events synced regularly, you can use the `Windows Task Scheduler` to invoke the executable regularly (e. g. every 30 min)
 
-## Privacy Mode
-Set `PRIVACY_MODE=true` in the `.env` file (next to the `.csproj`) to sync only event times and titles. When unset or set to any other value, full event data (description, location, attendees) is synced.
+## Privacy Mode (DEFAULT!)
+Set `PRIVACY_MODE=true` in the `.env` file (next to the `.csproj`) to sync only event times, titles, and location (with hyperlinks stripped). When unset or set to any other value, full event data (description, location, attendees) is synced.
 
 ## Known issues
 - If the sharing options are disabled in your Google calendar and if you're using Google Workspace, check the Workspace settings for Calendar and the sharing settings for secondary calendars.

@@ -331,6 +331,9 @@ namespace OutlookCalendarReader
             // Remove markdown-style links: [text](url) -> text
             result = System.Text.RegularExpressions.Regex.Replace(result, @"\[([^\]]+)\]\([^\)]+\)", "$1");
 
+            // Remove plain URLs (http/https/ftp)
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"https?://\S+|ftp://\S+", "");
+
             return result.Trim();
         }
     }
